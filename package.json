@@ -1,0 +1,28 @@
+{
+  "name": "instant-pens",
+  "version": "0.0.1",
+  "description": "Quickly gets a new or existing front-end project up-and-running.",
+  "main": "index.js",
+  "license": "MIT",
+  "bin": {
+    "pen": "./index.js"
+  },
+  "dependencies": {
+    "browser-sync": "^2.24.5",
+    "chokidar": "^2.0.4",
+    "commander": "^2.15.1",
+    "eazy-logger": "^3.0.2"
+  },
+  "config": {
+    "supportedPackages": {
+      "pug": [
+        ".pug",
+        ".jade"
+      ],
+      "stylus": [
+        ".stylus",
+        ".styl"
+      ]
+    }
+  }
+}
