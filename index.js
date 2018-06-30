@@ -2,6 +2,7 @@
 var browserSync = require('browser-sync')
 var chokidar = require('chokidar')
 var program = require('commander')
+// @TODO: Switch to chalk because eazy-logger is garbage
 var logger = require('eazy-logger').Logger({
   prefix: '{blue:[Instant Pens] '
 })
