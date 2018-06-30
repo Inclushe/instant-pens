@@ -9,20 +9,26 @@
   },
   "dependencies": {
     "browser-sync": "^2.24.5",
+    "chalk": "^2.4.1",
     "chokidar": "^2.0.4",
-    "commander": "^2.15.1",
-    "eazy-logger": "^3.0.2"
+    "commander": "^2.15.1"
   },
   "config": {
     "supportedPackages": {
-      "pug": [
-        ".pug",
-        ".jade"
-      ],
-      "stylus": [
-        ".stylus",
-        ".styl"
-      ]
+      "pug": {
+        "preprocessorType": "html",
+        "fileTypes": [
+          ".pug",
+          ".jade"
+        ]
+      },
+      "stylus": {
+        "preprocessorType": "css",
+        "fileTypes": [
+          ".styl",
+          ".stylus"
+        ]
+      }
     }
   }
 }
