@@ -40,8 +40,14 @@ program
     // @TODO:
     var preprocessors = [];
     args.forEach(function (packageName) {
+      if (packageName === 'html' || packageName === 'css' || packageName === 'js') {
+        config.defaultPreprocessors[packageName] = 'none'
+        return
+      }
       if (packageJSON.devDependencies && packageJSON.devDependencies[packageName]) {
-        logger(`${packageName} is already installed. Skipping.`)
+        logger(`${packageName} is already installed. Setting as a default preprocessor.`)
+        var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
+        config.defaultPreprocessors[preprocessorType] = packageName
         return
       }
       if (!packageJSON.config.supportedPackages[packageName]) {
@@ -75,7 +81,16 @@ program
         logger(`${chalk.red('[ERROR]')} An error occurred when installing packages. ${code}`)
       })
     } else {
-      logger('No preprocessors to install.')
+      promisify(fs.writeFile)(path.join(__dirname, 'config.json'), JSON.stringify(config))
+        .then(() => {})
+        .catch((e) => {
+          logger(`${chalk.red('[ERROR]')} An error occurred when writing to config.json.`)
+          console.error(e)
+        })
+      logger(chalk.bold('Default preprocessors:'))
+      logger(`HTML: ${config.defaultPreprocessors.html}`)
+      logger(` CSS: ${config.defaultPreprocessors.css}`)
+      logger(`  JS: ${config.defaultPreprocessors.js}`)
     }
   })
 
@@ -86,12 +101,14 @@ program
   .action(function (args, options) {
     var preprocessors = []
     if (!packageJSON.devDependencies) {
-      logger(`No preprocessors are installed.`)
+      logger('No preprocessors are installed.')
       return
     }
     args.forEach((packageName) => {
       if ((packageJSON.devDependencies[packageName])) {
         preprocessors.push(packageName)
+      } else {
+        logger(`${packageName} is not installed. Skipping.`)
       }
     })
     if (preprocessors.length > 0) {
@@ -166,14 +183,48 @@ program
   })
 
 program
-  .command('default <preprocessor..>')
+  .command('default [preprocessor...]')
   .description('sets default preprocessors')
   .option('-h, --html', 'Chooses the default HTML preprocessor')
   .option('-c, --css', 'Chooses the default CSS preprocessor')
   .option('-j, --js', 'Chooses the default JS preprocessor')
-  .action(() => {
-    console.log('default')
-    // @TODO: Should it be in config?
+  .action((args) => {
+    var preprocessors = [];
+    if (!packageJSON.devDependencies) {
+      logger('There are no preprocessors installed. Install preprocessors by running "pen add <preprocessor...>".')
+      return
+    }
+    args.forEach(function (packageName) {
+      if (packageName === 'html' || packageName === 'css' || packageName === 'js') {
+        config.defaultPreprocessors[packageName] = 'none'
+        return
+      }
+      if (!packageJSON.config.supportedPackages[packageName]) {
+        logger(`${packageName} is not a supported package/preprocessor. Skipping.`)
+        return
+      }
+      if (!packageJSON.devDependencies[packageName]) {
+        logger(`${packageName} is not installed. Install it by running "pen add ${packageName}". Skipping`)
+        return
+      }
+      preprocessors.push(packageName)
+    })
+    if (preprocessors.length > 0) {
+      preprocessors.forEach(function (packageName) {
+        var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
+        config.defaultPreprocessors[preprocessorType] = packageName
+      })
+    }
+    promisify(fs.writeFile)(path.join(__dirname, 'config.json'), JSON.stringify(config))
+      .then(() => {})
+      .catch((e) => {
+        logger(`${chalk.red('[ERROR]')} An error occurred when writing to config.json.`)
+        console.error(e)
+      })
+    logger(chalk.bold('Default preprocessors:'))
+    logger(`HTML: ${config.defaultPreprocessors.html}`)
+    logger(` CSS: ${config.defaultPreprocessors.css}`)
+    logger(`  JS: ${config.defaultPreprocessors.js}`)
   })
 
 program
