@@ -1,24 +1,28 @@
 #! /usr/bin/env node
-var browserSync = require('browser-sync')
-var chokidar = require('chokidar')
-var watcher = undefined // might not need
-var program = require('commander')
-var chalk = require('chalk')
-var logger = function (str) {
-  console.log(chalk.blue('[Instant Pens] ') + str)
-}
+var compile = require('./compile')
 var packageJSON = require('./package.json')
-var config
-try {
-  config = require('./config.json')
-} catch (e) {
-  config = {'defaultPreprocessors': {'html': 'none', 'css': 'none', 'js': 'none'}}
-}
 var childProcess = require('child_process')
 var path = require('path')
 var fs = require('fs')
 var util = require('util')
 var promisify = util.promisify
+var browserSync = require('browser-sync')
+var chokidar = require('chokidar')
+var watcher
+var program = require('commander')
+var chalk = require('chalk')
+var supportedFileTypes = {}
+var config
+
+var logger = function (str) {
+  console.log(chalk.blue('[Instant Pens] ') + str)
+}
+
+try {
+  config = require('./config.json')
+} catch (e) {
+  config = {'defaultPreprocessors': {'html': 'none', 'css': 'none', 'js': 'none'}}
+}
 
 program
   .version(packageJSON.version)
@@ -26,8 +30,8 @@ program
   .description(packageJSON.description)
   .option('-p, --port <port>', 'sets the Browsersync port')
   .option('-u, --ui-port <port>', 'sets the Browsersync UI port')
-  .option('-c, --config <file>', 'using configuration file')
-  .option('-d, --dist', 'sets a dist folder (compiles to same folder otherwise)')
+  // .option('-c, --config <file>', 'using configuration file')
+  // .option('-d, --dist', 'sets a dist folder (compiles to same folder otherwise)')
   // .option('-d, --debug', 'Log debug statements')
 
 program
@@ -185,9 +189,9 @@ program
 program
   .command('default [preprocessor...]')
   .description('sets default preprocessors')
-  .option('-h, --html', 'Chooses the default HTML preprocessor')
-  .option('-c, --css', 'Chooses the default CSS preprocessor')
-  .option('-j, --js', 'Chooses the default JS preprocessor')
+  // .option('-h, --html', 'Chooses the default HTML preprocessor')
+  // .option('-c, --css', 'Chooses the default CSS preprocessor')
+  // .option('-j, --js', 'Chooses the default JS preprocessor')
   .action((args) => {
     var preprocessors = [];
     if (!packageJSON.devDependencies) {
@@ -237,38 +241,73 @@ program
 
 program.parse(process.argv)
 
-function startBrowserSyncServer (dir) {
+function compileFile (filePath) {
+  // @TODO: Map supported packages to filetypes
+  console.log(filePath)
+  var parsedFile = path.parse(filePath)
+  if (supportedFileTypes[parsedFile.ext]) {
+    console.log(supportedFileTypes[parsedFile.ext])
+    promisify(fs.readFile)(filePath, 'utf8')
+      .then((data) => compile(data, supportedFileTypes[parsedFile.ext]))
+      .then((compiledData) => {
+        console.log(compiledData)
+      })
+      .catch((e) => {
+        console.log(e.message ? e.message : e)
+      })
+  }
+  browserSync.reload(filePath)
+}
+
+function startBrowserSyncServer (dir, options) {
   // @TODO: Perhaps turn off file watching in browsersync since it is already doing it in chokidar?
+  browserSync.init({
+    server: dir,
+    port: options.port || 3000,
+    ui: {
+      port: options.uiPort || 3001
+    }
+  })
 }
 
 function startChokidarServer (dir) {
-  // @TODO:
-}
-
-function compileFile (path) {
-  // @TODO: Map supported packages to filetypes
+  for (var pack in packageJSON.config.supportedPackages) {
+    packageJSON.config.supportedPackages[pack].fileTypes.forEach((fileType) => {
+      supportedFileTypes['.' + fileType] = pack
+    })
+  }
+  console.log(supportedFileTypes)
+  watcher = chokidar.watch(dir, {
+    persistent: true,
+    awaitWriteFinish: {
+      stabilityThreshold: 50
+    }
+  })
+  watcher
+    .on('add', compileFile)
+    .on('change', compileFile)
 }
 
 // Run Browsersync and Chokidar instance in current folder.
 if (program.args.length === 0) {
-  console.log('RUN THIS')
-  startBrowserSyncServer(process.cwd())
+  startBrowserSyncServer(process.cwd(), program)
   startChokidarServer(process.cwd())
-  console.log(program.port)
-  console.log(program.uiPort)
-  console.log(program.config)
-  console.log(process.cwd())
-  console.log(__dirname)
+  // console.log('RUN THIS')
+  // console.log(program.port)
+  // console.log(program.uiPort)
+  // console.log(program.config)
+  // console.log(process.cwd())
+  // console.log(__dirname)
 }
 
 // Run Browsersync and Chokidar instance in a different folder.
 if (program.args.length === 1) {
   // @TODO: Work with multiple folders
-  startBrowserSyncServer(program.args[0])
-  startChokidarServer(program.args[0])
-  console.log(program.args[0])
-  console.log(program.port)
-  console.log(program.uiPort)
+  startBrowserSyncServer(path.join(process.cwd(), program.args[0]))
+  startChokidarServer(path.join(process.cwd(), program.args[0]))
+  // console.log(program.args[0])
+  // console.log(program.port)
+  // console.log(program.uiPort)
 }
 
 // if (options.default) {
