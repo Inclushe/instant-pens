@@ -10,33 +10,28 @@ for (var dependency in packageJSON.devDependencies) {
   }
 }
 
-module.exports = function (data, type) {
+module.exports = function (data, type, path) {
   return new Promise((resolve, reject) => {
     if (!preprocessors[type]) {
-      reject(new Error({message: `The '${type}' dependency is not installed.`}))
+      reject(new Error(`The '${type}' dependency is not installed. Run 'pen add ${type}' to install.`))
     }
-    try {
-      promisify(preprocessors[type].render)(data)
-        .then((compiledData) => {
-          resolve(compiledData)
-        })
-        .catch((e) => {
+    switch (type) {
+      case 'pug':
+      case 'stylus':
+        try {
+          promisify(preprocessors[type].render)(data, {
+            'filename': path
+          })
+            .then((compiledData) => {
+              resolve(compiledData)
+            })
+            .catch((e) => {
+              reject(e)
+            })
+        } catch (e) {
           reject(e)
-        })
-    } catch (e) {
-      reject(e)
+        }
+        break
     }
-    // switch (type) {
-    //   case 'pug':
-    //     try {
-    //       resolve(preprocessors['pug'].render(data))
-    //     } catch (e) {
-    //       reject(e)
-    //     }
-    //     break
-    //   case 'stylus': {
-
-    //   }
-    // }
   })
 }

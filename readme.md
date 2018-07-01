@@ -28,4 +28,10 @@ pen default
 
 ```
 
-// @TODO: Run Test Suite?
+## TODO:
+- [ ] Enable HAML Support
+- [ ] Enable Handlebars Support
+- [ ] Enable Pug Support
+- [ ] Enable SASS/SCSS Support
+- [ ] Enable Stylus Support
+- [ ] Enable Babel Support

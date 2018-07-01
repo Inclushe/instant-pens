@@ -11,8 +11,12 @@ var chokidar = require('chokidar')
 var watcher
 var program = require('commander')
 var chalk = require('chalk')
+var mkdirp = require('mkdirp')
 var supportedFileTypes = {}
 var config
+var penFolder
+var distFolder
+var srcFolder
 
 function logger (str) {
   console.log(chalk.blue('[Instant Pens] ') + str)
@@ -30,9 +34,11 @@ program
   .description(packageJSON.description)
   .option('-p, --port <port>', 'sets the Browsersync port')
   .option('-u, --ui-port <port>', 'sets the Browsersync UI port')
+  .option('-d, --dist [dir]', 'sets a dist folder (compiles to same folder otherwise)')
+  .option('-i, --ignore <path...>', 'ignores files or paths selected')
+  .option('-s, --src [dir]', 'sets a src folder (uses same folder otherwise)')
+  .option('--debug', 'Log debug statements')
   // .option('-c, --config <file>', 'using configuration file')
-  // .option('-d, --dist', 'sets a dist folder (compiles to same folder otherwise)')
-  // .option('-d, --debug', 'Log debug statements')
   // .on('--help') @TODO:
 
 program
@@ -197,7 +203,7 @@ program
 
 program
   .command('default [preprocessor...]')
-  .description('sets default preprocessors')
+  .description('sets default preprocessors to use with pen create')
   // .option('-h, --html', 'Chooses the default HTML preprocessor')
   // .option('-c, --css', 'Chooses the default CSS preprocessor')
   // .option('-j, --js', 'Chooses the default JS preprocessor')
@@ -252,72 +258,139 @@ program
 
 program.parse(process.argv)
 
-function compileFile (filePath) {
-  console.log(filePath)
-  var parsedFile = path.parse(filePath)
+function compileFile (relativeFilePath) {
+  var absoluteFilePath = path.join(srcFolder || penFolder, relativeFilePath)
+  var parsedFile = path.parse(relativeFilePath)
   // Compile preprocesser file types
   if (supportedFileTypes[parsedFile.ext]) {
-    console.log(supportedFileTypes[parsedFile.ext])
-    promisify(fs.readFile)(filePath, 'utf8')
-      .then((data) => compile(data, supportedFileTypes[parsedFile.ext]))
-      .then((compiledData) => {
-        console.log(compiledData) // @TODO: Compile to new file
+    var compiledFilePath
+    var compiledData
+    promisify(fs.readFile)(absoluteFilePath, 'utf8')
+      .then((data) => compile(data, supportedFileTypes[parsedFile.ext], relativeFilePath))
+      .then((compiled) => {
+        compiledData = compiled.toString()
+        var compiledFileType = packageJSON.config.supportedPackages[supportedFileTypes[parsedFile.ext]].preprocessorType
+        compiledFilePath = path.join(distFolder || penFolder, parsedFile.dir, `${parsedFile.name}.${compiledFileType}`)
+        // console.log(compiledFilePath)
+        // If data blank, don't make file
+        if (compiledData.length === 0) return
+        promisify(mkdirp)(path.parse(compiledFilePath).dir)
+          .then(() => {
+            promisify(fs.writeFile)(compiledFilePath, compiledData, {
+              encoding: 'utf8'
+            })
+          })
+          .then(() => {
+            browserSync.reload(compiledFilePath)
+            if (program.debug) logger(`Wrote to ${compiledFilePath}`)
+          })
+          .catch((e) => {
+            logger(`${chalk.red('[ERROR]')} ${e.message ? e.message : '\n' + e}`)
+          })
       })
       .catch((e) => {
-        console.log(e.message ? e.message : e)
+        logger(`${chalk.red('[ERROR]')} ${e.message ? e.message : '\n' + e}`)
       })
+  } else if (distFolder) {
+    // If couldn't compile file and dist is set, copy file
+    var distFolderPath = path.join(distFolder, parsedFile.dir)
+    promisify(mkdirp)(distFolderPath)
+      .then(() => {
+        return promisify(fs.copyFile)(absoluteFilePath, path.join(distFolderPath, parsedFile.base))
+      })
+      .then(() => {
+        browserSync.reload(distFolderPath)
+      })
+      .catch((e) => {
+        logger(`${chalk.red('[ERROR]')} ${e.message ? e.message : '\n' + e}`)
+      })
+  } else {
+    browserSync.reload(absoluteFilePath)
   }
-  // @TODO: Compile or copy to dist folder
-  browserSync.reload(filePath)
 }
 
-function startBrowserSyncServer (dir, options) {
+function startBrowserSyncServer () {
   browserSync.init({
-    server: dir,
-    port: options.port || 3000,
+    server: distFolder || penFolder,
+    port: program.port || 3000,
     ui: {
-      port: options.uiPort || 3001
+      port: program.uiPort || 3001
     }
   })
 }
 
-function startChokidarServer (dir) {
+function startChokidarServer () {
   // Maps preprocessor file types to `supportedFileTypes`
   for (var pack in packageJSON.config.supportedPackages) {
     packageJSON.config.supportedPackages[pack].fileTypes.forEach((fileType) => {
       supportedFileTypes['.' + fileType] = pack
     })
   }
-  console.log(supportedFileTypes)
-  watcher = chokidar.watch(dir, {
+  var watcherOptions = {
+    cwd: srcFolder || penFolder,
+    ignored: ['node_modules'],
     persistent: true,
     awaitWriteFinish: {
-      stabilityThreshold: 50 // Fixes issues when working in Ubuntu @TODO: Take out?
+      stabilityThreshold: 50 // Fixes buffering issues. @TODO: Take out?
     }
-  })
+  }
+  // Gets ignored paths
+  if (program.ignore) {
+    var ignoredPaths = (Array.isArray(program.ignore) ? [...program.ignore] : [program.ignore])
+    ignoredPaths.forEach((path, index) => {
+      // @TODO: Probably doesn't need to be an array.
+      if (path[path.length - 1] === '/' || path[path.length - 1] === '\\') {
+        ignoredPaths[index] = path.slice(0, path.length - 1)
+      }
+    })
+    watcherOptions.ignored.push(...ignoredPaths)
+  }
+  watcher = chokidar.watch(watcherOptions.cwd, watcherOptions)
   watcher
-    .on('add', compileFile)
-    .on('change', compileFile)
+    .on('add', (filePath) => {
+      compileFile(path.join(filePath))
+    })
+    .on('change', (filePath) => {
+      compileFile(path.join(filePath))
+    })
+}
+
+// Run Browsersync and Chokidar instance in the passed folder.
+function runInstances () {
+  if ((program.dist && !program.src) || (!program.dist && program.src)) {
+    logger(`${chalk.red('[ERROR]')} The --dist and --src flags must both be set. Exiting.`)
+    return
+  }
+  if (program.dist) {
+    if (program.dist === true) {
+      program.dist = './dist/'
+    }
+    distFolder = path.join(penFolder, program.dist) // @TODO: Set up dist folder
+    logger(`Dist folder: ${distFolder}`)
+  }
+  if (program.src) {
+    if (program.src === true) {
+      program.src = './src/'
+    }
+    srcFolder = path.join(penFolder, program.src) // @TODO: Set up src folder
+    logger(`Src folder: ${srcFolder}`)
+  }
+  if (program.ignore) {
+    logger(`Ignoring paths: ${program.ignore}`)
+  }
+  startBrowserSyncServer()
+  startChokidarServer()
 }
 
 // Run Browsersync and Chokidar instance in current folder.
 if (program.args.length === 0) {
-  startBrowserSyncServer(process.cwd(), program)
-  startChokidarServer(process.cwd())
-  // console.log('RUN THIS')
-  // console.log(program.port)
-  // console.log(program.uiPort)
-  // console.log(program.config)
-  // console.log(process.cwd())
-  // console.log(__dirname)
+  penFolder = process.cwd()
+  runInstances()
 }
 
 // Run Browsersync and Chokidar instance in a different folder.
 if (program.args.length === 1) {
   // @TODO: Work with multiple folders
-  startBrowserSyncServer(path.join(process.cwd(), program.args[0]))
-  startChokidarServer(path.join(process.cwd(), program.args[0]))
-  // console.log(program.args[0])
-  // console.log(program.port)
-  // console.log(program.uiPort)
+  penFolder = path.join(process.cwd(), program.args[0])
+  runInstances()
 }
