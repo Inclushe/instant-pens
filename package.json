@@ -18,15 +18,15 @@
       "pug": {
         "preprocessorType": "html",
         "fileTypes": [
-          ".pug",
-          ".jade"
+          "pug",
+          "jade"
         ]
       },
       "stylus": {
         "preprocessorType": "css",
         "fileTypes": [
-          ".styl",
-          ".stylus"
+          "styl",
+          "stylus"
         ]
       }
     }

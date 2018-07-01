@@ -27,6 +27,7 @@ program
   .option('-p, --port <port>', 'sets the Browsersync port')
   .option('-u, --ui-port <port>', 'sets the Browsersync UI port')
   .option('-c, --config <file>', 'using configuration file')
+  .option('-d, --dist', 'sets a dist folder (compiles to same folder otherwise)')
   // .option('-d, --debug', 'Log debug statements')
 
 program
@@ -81,6 +82,7 @@ program
 program
   .command('remove <preprocessor...>')
   .description('removes preprocessor packages')
+  .option('-d, --debug', 'log debug statements')
   .action(function (args, options) {
     var preprocessors = []
     if (!packageJSON.devDependencies) {
@@ -122,10 +124,45 @@ program
 
 program
   .command('create <dir>')
-  .description('creates a new folder with selected preprocessors')
-  .action(() => {
-    console.log('create')
-    // @TODO:
+  .description('creates a new folder with default preprocessors')
+  .option('-d, --debug', 'log debug statements')
+  .action((dir, options) => {
+    var templates = {}
+    Object.keys(config.defaultPreprocessors).forEach((key) => {
+      var preprocessorPackage = config.defaultPreprocessors[key]
+      if (options.debug) console.log(preprocessorPackage)
+      var fileType = key
+      if (preprocessorPackage !== 'none') {
+        fileType = packageJSON.config.supportedPackages[preprocessorPackage].fileTypes[0]
+      }
+      templates[key] = {
+        'type': fileType,
+        'path': path.join(__dirname, `templates/${key}/index.${fileType}`)
+      }
+    })
+    if (options.debug) console.log(templates)
+    var folderPath = path.join(process.cwd(), dir)
+    if (fs.existsSync(folderPath)) {
+      logger(`'${dir}' already exists. Running anyway.`)
+    } else {
+      fs.mkdirSync(folderPath, (err) => {
+        if (err) console.error(err)
+      })
+    }
+    Promise
+      .all([
+        // @TODO: Change to writeFile?
+        promisify(fs.copyFile)(templates.html.path, path.join(folderPath, `index.${templates.html.type}`)),
+        promisify(fs.copyFile)(templates.css.path, path.join(folderPath, `index.${templates.css.type}`)),
+        promisify(fs.copyFile)(templates.js.path, path.join(folderPath, `index.${templates.js.type}`))
+      ])
+      .then(() => {
+        logger(`${dir} directory created with default preprocessor files.`)
+      })
+      .catch((e) => {
+        logger(`${chalk.red('[ERROR]')} An error occurred copying files to the project folders.`)
+        console.error(e)
+      })
   })
 
 program
@@ -161,6 +198,7 @@ function compileFile (path) {
   // @TODO: Map supported packages to filetypes
 }
 
+// Run Browsersync and Chokidar instance in current folder.
 if (program.args.length === 0) {
   console.log('RUN THIS')
   startBrowserSyncServer(process.cwd())
@@ -172,6 +210,7 @@ if (program.args.length === 0) {
   console.log(__dirname)
 }
 
+// Run Browsersync and Chokidar instance in a different folder.
 if (program.args.length === 1) {
   // @TODO: Work with multiple folders
   startBrowserSyncServer(program.args[0])
