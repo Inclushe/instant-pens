@@ -13,7 +13,7 @@ for (var dependency in packageJSON.devDependencies) {
 module.exports = function (data, type) {
   return new Promise((resolve, reject) => {
     if (!preprocessors[type]) {
-      reject({message: `The '${type}' dependency is not installed.`})
+      reject(new Error({message: `The '${type}' dependency is not installed.`}))
     }
     try {
       promisify(preprocessors[type].render)(data)

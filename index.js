@@ -14,7 +14,7 @@ var chalk = require('chalk')
 var supportedFileTypes = {}
 var config
 
-var logger = function (str) {
+function logger (str) {
   console.log(chalk.blue('[Instant Pens] ') + str)
 }
 
@@ -33,6 +33,7 @@ program
   // .option('-c, --config <file>', 'using configuration file')
   // .option('-d, --dist', 'sets a dist folder (compiles to same folder otherwise)')
   // .option('-d, --debug', 'Log debug statements')
+  // .on('--help') @TODO:
 
 program
   .command('add <preprocessor...>')
@@ -41,8 +42,8 @@ program
   .option('--no-default', 'prevents saving packages as defaults')
   .action(function (args, options) {
     if (options.debug) console.log(args)
-    // @TODO:
-    var preprocessors = [];
+    var preprocessors = []
+    // Push valid preprocessor packages into `preprocessors`
     args.forEach(function (packageName) {
       if (packageName === 'html' || packageName === 'css' || packageName === 'js') {
         config.defaultPreprocessors[packageName] = 'none'
@@ -61,6 +62,7 @@ program
       preprocessors.push(packageName)
     })
     if (preprocessors.length > 0) {
+      // Install all packages in `preprocessors`
       logger(`Installing: ${chalk.green(preprocessors.join(', '))}`)
       var installProgress = childProcess.spawn('npm', ['install', '--save-dev', ...preprocessors], {
         cwd: __dirname,
@@ -68,16 +70,19 @@ program
         shell: true
       })
       installProgress.on('close', (code) => {
-        preprocessors.forEach(function (packageName) {
-          var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
-          config.defaultPreprocessors[preprocessorType] = packageName
-        })
-        promisify(fs.writeFile)(path.join(__dirname, 'config.json'), JSON.stringify(config))
-          .then(() => { if (options.debug) logger('config.json was updated.') })
-          .catch((e) => {
-            logger(`${chalk.red('[ERROR]')} An error occurred when writing to config.json.`)
-            console.error(e)
+        // Save new preprocessors as defaults in config.json (turn off using --no-default)
+        if (!options.noDefault) {
+          preprocessors.forEach(function (packageName) {
+            var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
+            config.defaultPreprocessors[preprocessorType] = packageName
           })
+          promisify(fs.writeFile)(path.join(__dirname, 'config.json'), JSON.stringify(config))
+            .then(() => { if (options.debug) logger('config.json was updated.') })
+            .catch((e) => {
+              logger(`${chalk.red('[ERROR]')} An error occurred when writing to config.json.`)
+              console.error(e)
+            })
+        }
         logger(`The following packages have been installed and enabled: ${chalk.green(preprocessors.join(', '))}`)
         logger(`Run ${chalk.blue('pen')} to use your preprocessors.`)
       })
@@ -117,12 +122,14 @@ program
     })
     if (preprocessors.length > 0) {
       logger(`Uninstalling: ${chalk.green(preprocessors.join(', '))}`)
+      // Uninstall and remove dependencies from package.json and node_modules/
       var installProgress = childProcess.spawn('npm', ['uninstall', '--save-dev', ...preprocessors], {
         cwd: __dirname,
         stdio: 'inherit',
         shell: true
       })
       installProgress.on('close', (code) => {
+        // Remove uninstalled packages from config.json
         preprocessors.forEach(function (packageName) {
           var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
           config.defaultPreprocessors[preprocessorType] = 'none'
@@ -149,6 +156,7 @@ program
   .option('-d, --debug', 'log debug statements')
   .action((dir, options) => {
     var templates = {}
+    // Push files from the templates folder that correlate with the default preprocessors to `templates`
     Object.keys(config.defaultPreprocessors).forEach((key) => {
       var preprocessorPackage = config.defaultPreprocessors[key]
       if (options.debug) console.log(preprocessorPackage)
@@ -162,6 +170,7 @@ program
       }
     })
     if (options.debug) console.log(templates)
+    // Copy files over to the new directory
     var folderPath = path.join(process.cwd(), dir)
     if (fs.existsSync(folderPath)) {
       logger(`'${dir}' already exists. Running anyway.`)
@@ -172,7 +181,7 @@ program
     }
     Promise
       .all([
-        // @TODO: Change to writeFile?
+        // @TODO: Change to writeFile and change directories?
         promisify(fs.copyFile)(templates.html.path, path.join(folderPath, `index.${templates.html.type}`)),
         promisify(fs.copyFile)(templates.css.path, path.join(folderPath, `index.${templates.css.type}`)),
         promisify(fs.copyFile)(templates.js.path, path.join(folderPath, `index.${templates.js.type}`))
@@ -193,11 +202,12 @@ program
   // .option('-c, --css', 'Chooses the default CSS preprocessor')
   // .option('-j, --js', 'Chooses the default JS preprocessor')
   .action((args) => {
-    var preprocessors = [];
+    var preprocessors = []
     if (!packageJSON.devDependencies) {
       logger('There are no preprocessors installed. Install preprocessors by running "pen add <preprocessor...>".')
       return
     }
+    // Push installed packages to `preprocessors`
     args.forEach(function (packageName) {
       if (packageName === 'html' || packageName === 'css' || packageName === 'js') {
         config.defaultPreprocessors[packageName] = 'none'
@@ -213,6 +223,7 @@ program
       }
       preprocessors.push(packageName)
     })
+    // Save defaults to config.json
     if (preprocessors.length > 0) {
       preprocessors.forEach(function (packageName) {
         var preprocessorType = packageJSON.config.supportedPackages[packageName].preprocessorType
@@ -231,36 +242,36 @@ program
     logger(`  JS: ${config.defaultPreprocessors.js}`)
   })
 
-program
-  .command('config [options]]')
-  .description('config')
-  .action(() => {
-    console.log('config')
-    // @TODO:
-  })
+// program
+//   .command('config [options]]')
+//   .description('config')
+//   .action(() => {
+//     console.log('config')
+//     // @TODO:
+//   })
 
 program.parse(process.argv)
 
 function compileFile (filePath) {
-  // @TODO: Map supported packages to filetypes
   console.log(filePath)
   var parsedFile = path.parse(filePath)
+  // Compile preprocesser file types
   if (supportedFileTypes[parsedFile.ext]) {
     console.log(supportedFileTypes[parsedFile.ext])
     promisify(fs.readFile)(filePath, 'utf8')
       .then((data) => compile(data, supportedFileTypes[parsedFile.ext]))
       .then((compiledData) => {
-        console.log(compiledData)
+        console.log(compiledData) // @TODO: Compile to new file
       })
       .catch((e) => {
         console.log(e.message ? e.message : e)
       })
   }
+  // @TODO: Compile or copy to dist folder
   browserSync.reload(filePath)
 }
 
 function startBrowserSyncServer (dir, options) {
-  // @TODO: Perhaps turn off file watching in browsersync since it is already doing it in chokidar?
   browserSync.init({
     server: dir,
     port: options.port || 3000,
@@ -271,6 +282,7 @@ function startBrowserSyncServer (dir, options) {
 }
 
 function startChokidarServer (dir) {
+  // Maps preprocessor file types to `supportedFileTypes`
   for (var pack in packageJSON.config.supportedPackages) {
     packageJSON.config.supportedPackages[pack].fileTypes.forEach((fileType) => {
       supportedFileTypes['.' + fileType] = pack
@@ -280,7 +292,7 @@ function startChokidarServer (dir) {
   watcher = chokidar.watch(dir, {
     persistent: true,
     awaitWriteFinish: {
-      stabilityThreshold: 50
+      stabilityThreshold: 50 // Fixes issues when working in Ubuntu @TODO: Take out?
     }
   })
   watcher
@@ -309,33 +321,3 @@ if (program.args.length === 1) {
   // console.log(program.port)
   // console.log(program.uiPort)
 }
-
-// if (options.default) {
-//   var preprocessors = []
-//   ;[program.default, ...program.args].forEach(function (packageName, index) {
-//     if (packageJSON.config.supportedPackages.includes(packageName)) {
-//       preprocessors.push(packageName)
-//     } else {
-//       console.log(`${packageName} is not a supported package/preprocessor. Skipping.`)
-//     }
-//   })
-//   if (preprocessors.length > 0) {
-//     console.log(`Installing: ${preprocessors.join(', ')}`)
-//     var installProgress = childProcess.spawn('npm', ['i', ...preprocessors], {
-//       cmd: __dirname,
-//       stdio: 'inherit'
-//     })
-//         // console.log('The following packages have been installed and enabled:')
-//         // console.log(preprocessors.join(', '))
-//     installProgress.on('close', (code) => {
-//       console.log(`child process exited with code ${code}`)
-//     })
-//     installProgress.on('error', (code) => {
-//       console.log(`child process exited with code ${code}`)
-//     })
-//   }
-// }
-// console.log(__dirname)
-// console.log(process.cwd())
-
-// console.log(program)
