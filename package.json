@@ -1,6 +1,6 @@
 {
   "name": "instant-pens",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Quickly gets a new or existing front-end project up-and-running.",
   "main": "index.js",
   "license": "MIT",

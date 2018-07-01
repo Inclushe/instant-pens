@@ -35,7 +35,7 @@ program
   .option('-p, --port <port>', 'sets the Browsersync port')
   .option('-u, --ui-port <port>', 'sets the Browsersync UI port')
   .option('-d, --dist [dir]', 'sets a dist folder (compiles to same folder otherwise)')
-  .option('-i, --ignore <path...>', 'ignores files or paths selected')
+  .option('-i, --ignore <path>', 'ignores files or paths selected')
   .option('-s, --src [dir]', 'sets a src folder (uses same folder otherwise)')
   .option('--debug', 'Log debug statements')
   // .option('-c, --config <file>', 'using configuration file')

@@ -4,34 +4,56 @@ Automatically compiles HTML/CSS/JS preprocessors and live reloads your page usin
 
 Use your editor of choice.
 
-It just works(tm).
+**NOTE: Currently in testing.**
 
-```bash
-npm install -g instant-pens # globally install instant-pens
-pen add pug stylus # install your preprocessors/compilers of choice
-pen create ./new-project/
-[Instant Pens] Using default preprocessors: pug, stylus [change using 'pen default']
-cd new-project/
-pen
 
-pen # Runs Browsersync live reloading and chokidar in current folder
-pen [directory] # Runs Browsersync live reloading and chokidar in directory
-# Flags
-pen -p --port
-pen -u --ui-port
-pen -c --config
-pen --bs-config
-pen add
-pen add -n --no-default
-pen create
-pen default
+## Installation
 
+```shell
+$ npm install -g instant-pens
+$ pen add [preprocessor...] # Add your preprocessors/compilers of choice
 ```
+
+### Preprocessors
+
+Preprocessors only need to be added once to compile files when `pen` is run.
+
+- [X] `pug` (Pug/Jade)
+- [X] `stylus`
+- [ ] HAML
+- [ ] Handlebars
+- [ ] SASS/SCSS
+- [ ] Babel
+
+## Examples
+
+```shell
+# compile in current directory
+$ pen
+
+# compile in different directory
+$ pen [dir]
+
+# compile or copy files from src/ directory to dist/ directory
+$ pen --src --dist
+
+# add preprocessors pug and stylus
+$ pen add pug stylus
+
+# remove preprocessor pug
+$ pen remove pug
+
+# create project folder with default preprocessor files
+$ pen create ./new-project/
+
+# set default preprocessor files to create when running `pen create`
+pen default html stylus js
+```
+
+For more options, run `pen --help` or `pen [command] --help`.
 
 ## TODO:
 - [ ] Enable HAML Support
 - [ ] Enable Handlebars Support
-- [ ] Enable Pug Support
 - [ ] Enable SASS/SCSS Support
-- [ ] Enable Stylus Support
 - [ ] Enable Babel Support
